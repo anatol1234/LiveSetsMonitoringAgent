@@ -1,0 +1,8 @@
+Manifest-Version: 1.0
+Premain-Class: agent.LiveSetsAgent
+Agent-Class: agent.LiveSetsAgent
+Boot-Class-Path: javassist.jar; al.jar
+Can-Redefine-Classes: true
+Can-Retransform-Classes: true
+Can-Set-Native-Method-Prefix: true
+
