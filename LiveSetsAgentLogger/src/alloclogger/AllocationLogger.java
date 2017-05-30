@@ -56,15 +56,9 @@ public class AllocationLogger {
     }
 
     public void allocDetected(String allocTypeName, String className, String methodName, int bci, int lnr) {
-        if (loggingLock.lock()) {
+        if (lockForLogging()) {
             try {
-                if (isLoggingEnabled && Thread.currentThread().getId() != excludedThread && Thread.currentThread().getId() != shutdownThread) {
-                    synchronized (shutdownHeuristicLock) { // shutdown heuristic
-                        lastAllocTime = System.currentTimeMillis();
-                        shutdownHeuristicLock.notifyAll();
-                    }
-                    logAllocation(new AllocationSite(allocTypeName, className, methodName, bci, lnr));
-                }
+               logAllocation(new AllocationSite(allocTypeName, className, methodName, bci, lnr));
             } finally {
                 loggingLock.unlock();
             }
@@ -72,16 +66,28 @@ public class AllocationLogger {
     }
 
     public void arrayAllocDetected(String allocTypeName, String className, String methodName, int bci, int lnr) {
-        allocDetected(allocTypeName + "[]", className, methodName, bci, lnr);
+    	if (lockForLogging()) {
+            try {
+               logAllocation(new AllocationSite(allocTypeName + "[]", className, methodName, bci, lnr));
+            } finally {
+                loggingLock.unlock();
+            }
+        }
     }
 
     public void multiArrayAllocDetected(String allocTypeName, String className, String methodName, int bci, int lnr, int dimcount) {
-        StringBuilder sb = new StringBuilder(allocTypeName);
-        while ( dimcount > 0){
-            sb.append("[]");
-            dimcount--;
-        }
-        allocDetected(sb.toString(), className, methodName, bci, lnr);
+    	if (lockForLogging()) {
+            try {
+		    	StringBuilder sb = new StringBuilder(allocTypeName);
+		        while ( dimcount > 0){
+		            sb.append("[]");
+		            dimcount--;
+		        }
+		        logAllocation(new AllocationSite(sb.toString(), className, methodName, bci, lnr));
+	    	} finally {
+	            loggingLock.unlock();
+	        }
+    	}
     }
 
 
@@ -93,6 +99,22 @@ public class AllocationLogger {
         excludedThread = NO_THREAD;
     }
 
+    private boolean lockForLogging(){
+    	if (loggingLock.lock()) {
+	    	if (isLoggingEnabled && Thread.currentThread().getId() != excludedThread && Thread.currentThread().getId() != shutdownThread) {
+	    		synchronized (shutdownHeuristicLock) { // shutdown heuristic
+	    			lastAllocTime = System.currentTimeMillis();
+	                shutdownHeuristicLock.notifyAll();
+	            }
+	            return true;
+	    	}else{
+	    		loggingLock.unlock();
+	    	}
+    	}
+    	return false;
+    }
+             
+    
     /*
      * Is only allowed to allocate on the current thread.
      */
