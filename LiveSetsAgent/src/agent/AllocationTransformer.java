@@ -79,7 +79,7 @@ class AllocationTransformer implements ClassFileTransformer{
 						break;
 					case Opcode.NEWARRAY:
 						int aType = iterator.byteAt(bci+1);
-						allocTypeName = getPrimitiveTypeName(aType);
+						allocTypeName = getPrimitiveTypeName(aType) + "[]";
 						iterator.insert(bci, emitAllocationDetected(clazz, method, allocTypeName, bci));
 						break;
 					case Opcode.MULTIANEWARRAY:
