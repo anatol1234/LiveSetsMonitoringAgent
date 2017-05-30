@@ -65,32 +65,6 @@ public class AllocationLogger {
         }
     }
 
-    public void arrayAllocDetected(String allocTypeName, String className, String methodName, int bci, int lnr) {
-    	if (lockForLogging()) {
-            try {
-               logAllocation(new AllocationSite(allocTypeName + "[]", className, methodName, bci, lnr));
-            } finally {
-                loggingLock.unlock();
-            }
-        }
-    }
-
-    public void multiArrayAllocDetected(String allocTypeName, String className, String methodName, int bci, int lnr, int dimcount) {
-    	if (lockForLogging()) {
-            try {
-		    	StringBuilder sb = new StringBuilder(allocTypeName);
-		        while ( dimcount > 0){
-		            sb.append("[]");
-		            dimcount--;
-		        }
-		        logAllocation(new AllocationSite(sb.toString(), className, methodName, bci, lnr));
-	    	} finally {
-	            loggingLock.unlock();
-	        }
-    	}
-    }
-
-
     public void excludeThread() {
         excludedThread = Thread.currentThread().getId();
     }
@@ -119,12 +93,7 @@ public class AllocationLogger {
      * Is only allowed to allocate on the current thread.
      */
     private void logAllocation(AllocationSite allocSite) {
-        // why not ? allocSiteMap.put(allocSite, allocSiteMap.getOrDefault(allocSite, 0) + 1);
-        if (allocSiteMap.containsKey(allocSite)) {
-            allocSiteMap.put(allocSite, allocSiteMap.get(allocSite) + 1);
-        } else {
-            allocSiteMap.put(allocSite, 1);
-        }
+        allocSiteMap.put(allocSite, allocSiteMap.getOrDefault(allocSite, 0) + 1);        
         totalAllocCount++;
     }
 

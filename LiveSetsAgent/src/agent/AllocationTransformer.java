@@ -19,6 +19,7 @@ import javassist.bytecode.CodeAttribute;
 import javassist.bytecode.CodeIterator;
 import javassist.bytecode.MethodInfo;
 import javassist.bytecode.Opcode;
+import javassist.bytecode.SignatureAttribute;
 
 class AllocationTransformer implements ClassFileTransformer{
 	private static final Logger LOGGER = Logger.getLogger(AllocationTransformer.class.getName());
@@ -64,35 +65,38 @@ class AllocationTransformer implements ClassFileTransformer{
 				int bci = iterator.next();
 				int opcode = iterator.byteAt(bci);
 				int objectrefIndex;
+				String allocTypeName;
 				switch(opcode){
 					case Opcode.NEW:
 						objectrefIndex = iterator.u16bitAt(bci+1);
-						iterator.insert(bci, emitAllocationDetected(clazz, method, bci, objectrefIndex));
+						allocTypeName = method.getConstPool().getClassInfo(objectrefIndex);
+						iterator.insert(bci, emitAllocationDetected(clazz, method, allocTypeName, objectrefIndex));
 						break;
 					case Opcode.ANEWARRAY:
 						objectrefIndex = iterator.u16bitAt(bci+1);
-						iterator.insert(bci, emitArrayAllocationDetected(clazz, method, bci, objectrefIndex));
+						allocTypeName = method.getConstPool().getClassInfo(objectrefIndex) + "[]";
+						iterator.insert(bci, emitAllocationDetected(clazz, method, allocTypeName, bci));
 						break;
 					case Opcode.NEWARRAY:
 						int aType = iterator.byteAt(bci+1);
-						iterator.insert(bci, emitPrimitiveArrayAllocationDetected(clazz, method, bci, aType));
+						allocTypeName = getPrimitiveTypeName(aType);
+						iterator.insert(bci, emitAllocationDetected(clazz, method, allocTypeName, bci));
 						break;
-					//FIXME
-					/*case Opcode.MULTIANEWARRAY:
+					case Opcode.MULTIANEWARRAY:
 						objectrefIndex = iterator.u16bitAt(bci+1);
-						int count = iterator.byteAt(bci+3);
-						iterator.insert(bci, emitMultiArrayAllocationDetected(clazz, method, bci, objectrefIndex, count));
-						break;*/
+						allocTypeName = SignatureAttribute.toTypeSignature(method.getConstPool().getClassInfo(objectrefIndex)).toString();
+						iterator.insert(bci, emitAllocationDetected(clazz, method, allocTypeName, bci));
+						break;
 				}
 			}
 			code.computeMaxStack();
 		}		
 	}
 
-	private byte[] emitAllocationDetected(String clazz, MethodInfo method, int newopbci, int objectrefIndex) {
+	private byte[] emitAllocationDetected(String clazz, MethodInfo method, String allocTypeName, int newopbci) {
 		Bytecode bytecode = new Bytecode(method.getConstPool());
 		bytecode.addInvokestatic(AllocationLogger.class.getName(), "getAllocationLogger", "()L" + AllocationLogger.class.getPackage().getName() + "/AllocationLogger;");
-		bytecode.addLdc(method.getConstPool().getClassInfo(objectrefIndex));
+		bytecode.addLdc(allocTypeName);
 		bytecode.addLdc(clazz);
 		bytecode.addLdc(method.getName());	
 		bytecode.addIconst(newopbci);
@@ -100,44 +104,7 @@ class AllocationTransformer implements ClassFileTransformer{
 		bytecode.addInvokevirtual(AllocationLogger.class.getName(), "allocDetected", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;II)V");
 		return bytecode.get();
 	}
-
-	private byte[] emitArrayAllocationDetected(String clazz, MethodInfo method, int newopbci, int objectrefIndex) {
-		Bytecode bytecode = new Bytecode(method.getConstPool());
-		bytecode.addInvokestatic(AllocationLogger.class.getName(), "getAllocationLogger", "()L" + AllocationLogger.class.getPackage().getName() + "/AllocationLogger;");
-		bytecode.addLdc(method.getConstPool().getClassInfo(objectrefIndex));
-		bytecode.addLdc(clazz);
-		bytecode.addLdc(method.getName());
-		bytecode.addIconst(newopbci);
-		bytecode.addIconst(method.getLineNumber(newopbci));
-		bytecode.addInvokevirtual(AllocationLogger.class.getName(), "arrayAllocDetected", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;II)V");
-		return bytecode.get();
-	}
-
-	private byte[] emitMultiArrayAllocationDetected(String clazz, MethodInfo method, int newopbci, int objectrefIndex, int dims) {
-		Bytecode bytecode = new Bytecode(method.getConstPool());
-		bytecode.addInvokestatic(AllocationLogger.class.getName(), "getAllocationLogger", "()L" + AllocationLogger.class.getPackage().getName() + "/AllocationLogger;");
-		bytecode.addLdc(method.getConstPool().getClassInfo(objectrefIndex));
-		bytecode.addLdc(clazz);
-		bytecode.addLdc(method.getName());
-		bytecode.addIconst(newopbci);
-		bytecode.addIconst(method.getLineNumber(newopbci));
-		bytecode.addIconst(dims);
-		bytecode.addInvokevirtual(AllocationLogger.class.getName(), "mutliArrayAllocDetected", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;III)V");
-		return bytecode.get();
-	}
-
-	private byte[] emitPrimitiveArrayAllocationDetected(String clazz, MethodInfo method, int newopbci, int aType) throws BadBytecode {
-		Bytecode bytecode = new Bytecode(method.getConstPool());
-		bytecode.addInvokestatic(AllocationLogger.class.getName(), "getAllocationLogger", "()L" + AllocationLogger.class.getPackage().getName() + "/AllocationLogger;");
-		bytecode.addLdc(getPrimitiveTypeName(aType));
-		bytecode.addLdc(clazz);
-		bytecode.addLdc(method.getName());
-		bytecode.addIconst(newopbci);
-		bytecode.addIconst(method.getLineNumber(newopbci));
-		bytecode.addInvokevirtual(AllocationLogger.class.getName(), "arrayAllocDetected", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;II)V");
-		return bytecode.get();
-	}
-
+	
 	private String getPrimitiveTypeName(int aType) throws BadBytecode {
 		switch(aType){
 			case Opcode.T_BOOLEAN:
