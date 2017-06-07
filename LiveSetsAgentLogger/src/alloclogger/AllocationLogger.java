@@ -9,7 +9,7 @@ import java.util.stream.Collectors;
 public class AllocationLogger {
     private static final int MAX_SHUTDOWN_QUIET_TIME = 10000;
     private static final int MIN_TIME_SINCE_LAST_ALLOC = 1000;
-    private static final long MAX_OUTPUT_ALLOCSITES_COUNT = 1000;
+    private static final long MAX_OUTPUT_ALLOCSITES_COUNT = 10;
     private static final long NO_THREAD = -1;
 
     private static AllocationLogger allocationLogger;
@@ -21,7 +21,6 @@ public class AllocationLogger {
     private volatile long excludedThread = NO_THREAD;
     private long shutdownThread;
     private long lastAllocTime;
-    private int totalAllocCount = 0;
 
     private AllocationLogger(Runnable onShutdown) {
         Thread shutdownThread = new Thread(
@@ -93,15 +92,13 @@ public class AllocationLogger {
      * Is only allowed to allocate on the current thread.
      */
     private void logAllocation(AllocationSite allocSite) {
-        allocSiteMap.put(allocSite, allocSiteMap.getOrDefault(allocSite, 0) + 1);        
-        totalAllocCount++;
+        allocSiteMap.put(allocSite, allocSiteMap.getOrDefault(allocSite, 0) + 1);
     }
 
     /*
      * Is only allowed to allocate on the current thread.
      */
     private void shutdownLogging() {
-        System.out.println("Shutting down agent ...");
         long startTime = System.currentTimeMillis();
         synchronized (shutdownHeuristicLock) { // shutdown heuristic
             long ctime;
@@ -130,6 +127,7 @@ public class AllocationLogger {
         int maxAllocCountLen = topAllocSites.size() > 0 ? String.valueOf(topAllocSites.get(0).getValue()).length() : 0;
         String formatStr = "%-" + (maxIndexLen + 1) + "s %" + maxAllocCountLen + "d %s";
         int index = 1;
+        System.out.println("Allocations:");
         for (Map.Entry<AllocationSite, Integer> entry : topAllocSites) {
             AllocationSite allocSite = entry.getKey();
             String allocSiteRepr = allocSite.getAllocTypeName() + " @ "
@@ -138,7 +136,6 @@ public class AllocationLogger {
                     + " (" + (allocSite.getLnr() == -1 ? "BCI " + allocSite.getBci() : "Line " + allocSite.getLnr()) + ")";
             System.out.println(String.format(formatStr, index++ + ")", entry.getValue(), allocSiteRepr));
         }
-        System.out.println("total allocations count: " + totalAllocCount);
     }
 
 }
